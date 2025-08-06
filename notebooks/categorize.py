@@ -36,7 +36,7 @@ df_ar6clim = pd.read_csv(os.path.join(datadir, filename), index_col=["Model", "S
 df_ar6clim
 
 # %%
-list(df_ar6clim.index.get_level_values("Variable").unique())
+#list(df_ar6clim.index.get_level_values("Variable").unique())
 
 # %%
 varp50 = 'AR6 climate diagnostics|Surface Temperature (GSAT)|MAGICCv7.5.3|50.0th Percentile'
@@ -85,39 +85,54 @@ ghg_emis = ghg_emis.loc[ghg_emis.index.droplevel(('Region', 'Variable', 'Unit'))
 # %%
 # indices of scenarios that achieve NZ GHGs before 2100
 nz_scens_index = np.unique(np.where(np.diff(np.sign(ghg_emis))<0)[0])
-nz_scens_index
+# nz_scens_index
 
 # %%
-# scenarios that are < 47GtCO2e in 2030 are considered to be "immediate action". Those that excced this may fall into the TT30 category.
-# This is only really relevant for the C3 and C4 subcategory distinction
-imm_scens_index = np.unique(np.where(ghg_emis.loc[:,'2030']<47000)[0])
-imm_scens_index
+#not_nz_scens_index = np.arange(1202, dtype=int)
+not_nz_scens_index = np.array([i for i in np.arange(1202, dtype=int) if i not in nz_scens_index])
+#not_nz_scens_index
 
 # %%
-scen_meta = pd.DataFrame(data=np.zeros((len(ghg_emis), 2), dtype=bool), index=ghg_emis.index, columns=['NZ_GHG', 'IMM'])
-scen_meta.iloc[nz_scens_index, 0] = True
-scen_meta.iloc[imm_scens_index, 1] = True
+# # scenarios that are < 47GtCO2e in 2030 are considered to be "immediate action". Those that excced this may fall into the TT30 category.
+# # This is only relevant for the C3 subcategory
+# imm_scens_index = np.unique(np.where(ghg_emis.loc[:,'2030']<47000)[0])
+# imm_scens_index
+
+# %%
+meta_columns = [
+    'Category_DEC_p50',
+    'Category_DEC_p67',
+    'PW_p50',
+    'PW_p67',
+    '2100_p50',
+    '2100_p67',
+    '2090_p50',
+    '2090_p67',
+    'DEC_p50',
+    'DEC_p67',
+    'NZ_GHG', 
+    'IMM_TT30', 
+]
+
+# %%
+scen_meta = pd.DataFrame(
+    #data=np.zeros((len(ghg_emis), len(meta_columns)), dtype=bool), 
+    index=ghg_emis.index, 
+    columns=meta_columns,
+)
+# Fill in emissions-based meta now
+scen_meta.iloc[not_nz_scens_index, scen_meta.columns.get_loc('NZ_GHG')] = False
+scen_meta.iloc[nz_scens_index, scen_meta.columns.get_loc('NZ_GHG')] = True
+#scen_meta.iloc[imm_scens_index, scen_meta.columns.get_loc('IMM_TT30')] = 'IMM'
 
 # %%
 scen_meta
 
 # %%
-scen_meta.loc[scen_meta['NZ_GHG']==True]
-
-# %%
-scen_meta.loc[scen_meta['IMM']==True]
-
-# %%
 ghg_emis.loc[scen_meta['NZ_GHG'], :]
 
 # %%
-ghg_emis.loc[scen_meta['IMM'], :]
-
-# %%
 pl.plot(ghg_emis.loc[scen_meta['NZ_GHG'], :].values.T);
-
-# %%
-pl.plot(ghg_emis.loc[scen_meta['IMM'], :].values.T);
 
 # %% [markdown]
 # ## New class proposal
@@ -126,7 +141,7 @@ pl.plot(ghg_emis.loc[scen_meta['IMM'], :].values.T);
 #
 # Following Elmar's suggestion we also define "DEC" based on p50 and p67. We would expect that anything that is DEC at p50 is also at p67. We therefore run "_p50dec" and "_p67dec" versions of the comparison. 
 #
-# We also use two definitions of warming: smoothed and unsmoothed. This is used to evaluate both peak warming and the rate of decline at the end of century.
+# We also use a smoothed definition of warming for both peak warming and the rate of decline at the end of century. This is because we want to isolate the effect of the solar cycle.
 #
 # We now also distinguish between scenarios that are NZ GHGs before the end of the century and those that are not, and those that are immediate action (IMM) versus those that follow current trends and policies until 2030 (TT30), where the cutoff is 47 GtCO2e emissions in 2030.
 
@@ -137,869 +152,105 @@ pl.plot(np.arange(2000, 2101), magicc_p50_smoothed.values.T, lw=1, color='b', al
 pl.plot(np.arange(2000, 2101), magicc_p67_smoothed.values.T, lw=1, color='b', alpha=0.1);
 
 # %%
-# GW0a
-gw0a_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.5) & 
-    (magicc_p50_smoothed["2100"] < 1.5) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"]) & 
-    (scen_meta['NZ_GHG'])
-)
-np.sum(gw0a_p50dec)
-
-# %%
-gw0a_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.5) & 
-    (magicc_p50_smoothed["2100"] < 1.5) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"]) & 
-    (scen_meta['NZ_GHG'])
-)
-np.sum(gw0a_p67dec)
-
-# %%
-# GW0b
-gw0b_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.5) & 
-    (magicc_p50_smoothed["2100"] < 1.5) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"]) & 
-    (~scen_meta['NZ_GHG'])
-)
-np.sum(gw0b_p50dec)
-
-# %%
-gw0b_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.5) & 
-    (magicc_p50_smoothed["2100"] < 1.5) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"]) & 
-    (~scen_meta['NZ_GHG'])
-)
-np.sum(gw0b_p67dec)
-
-# %%
-# GW1a
-# should be "and not GW0a"; but let's increment one by one for now
-gw1a_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.6) & 
-    (magicc_p50_smoothed["2100"] < 1.5) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"]) &
-    (scen_meta['NZ_GHG'])
-)
-np.sum(gw1a_p50dec)
-
-# %%
-gw1a_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.6) & 
-    (magicc_p50_smoothed["2100"] < 1.5) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"]) &
-    (scen_meta['NZ_GHG'])
-)
-np.sum(gw1a_p67dec)
-
-# %%
-# GW1b
-gw1b_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.6) & 
-    (magicc_p50_smoothed["2100"] < 1.5) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"]) &
-    (~scen_meta['NZ_GHG'])
-)
-np.sum(gw1b_p50dec)
-
-# %%
-gw1b_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.6) & 
-    (magicc_p50_smoothed["2100"] < 1.5) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"]) &
-    (~scen_meta['NZ_GHG'])
-)
-np.sum(gw1b_p67dec)
-
-# %%
-# GW2-I: not explicitly requiring DEC according to Elmar - only we "expect" it.
-# Now with the p50 and p67 definitions we should require it since p67 is a harder condition to meet.
-# We are not checking compliance with IMM and NZ. Elmar says we should expect it. However I'm not 100% sure these will all be IMM. 
-# most or all should be NZ
-gw2i_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.7) & 
-    (magicc_p67_smoothed["2100"] < 1.5) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"])
-    # no IMM / NZ condition
-)
-np.sum(gw2i_p50dec)
-
-# %%
-gw2i_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.7) & 
-    (magicc_p67_smoothed["2100"] < 1.5) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"])
-    # no IMM / NZ condition
-)
-np.sum(gw2i_p67dec)
-
-# %%
-# GW2-II: not explicitly requiring DEC according to Elmar - only we "expect" it
-# Now with the p50 and p67 definitions we should require it since p67 is a harder condition to meet.
-# Again not testing IMM+NZ compliance.
-gw2ii_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.7) & 
-    (magicc_p50_smoothed["2100"] < 1.5) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"])
-    # no IMM / NZ condition
-)
-np.sum(gw2ii_p50dec)
-
-# %%
-gw2ii_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.7) & 
-    (magicc_p50_smoothed["2100"] < 1.5) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"])
-    # no IMM / NZ condition
-)
-np.sum(gw2ii_p67dec)
-
-# %%
-# GW2-IIIa
-gw2iiia_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.7) & 
-    (magicc_p50_smoothed["2100"] < 1.7) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"]) &
-    (scen_meta['NZ_GHG'])
-)
-np.sum(gw2iiia_p50dec)
-
-# %%
-gw2iiia_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.7) & 
-    (magicc_p50_smoothed["2100"] < 1.7) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"]) &
-    (scen_meta['NZ_GHG'])
-)
-np.sum(gw2iiia_p67dec)
-
-# %%
-# GW2-IIIb
-gw2iiib_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.7) & 
-    (magicc_p50_smoothed["2100"] < 1.7) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"]) &
-    (~scen_meta['NZ_GHG'])
-)
-np.sum(gw2iiib_p50dec)
-
-# %%
-gw2iiib_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.7) & 
-    (magicc_p50_smoothed["2100"] < 1.7) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"]) &
-    (~scen_meta['NZ_GHG'])
-)
-np.sum(gw2iiib_p67dec)
-
-# %%
-# GW2-IIIc
-gw2iiic_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.7) & 
-    (magicc_p50_smoothed["2100"] < 1.7) & 
-    (magicc_p50_smoothed["2100"] >= magicc_p50_smoothed["2090"])
-    # not checking NZ, we assume they are not
-)
-np.sum(gw2iiic_p50dec)
-
-# %%
-gw2iiic_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 1.7) & 
-    (magicc_p50_smoothed["2100"] < 1.7) & 
-    (magicc_p67_smoothed["2100"] >= magicc_p67_smoothed["2090"])
-    # not checking NZ, we assume they are not
-)
-np.sum(gw2iiic_p67dec)
-
-# %%
-# GW3-I
-# Elmar says he expects all scenarios to be DEC, but I will put the test in
-# not checking NZ: Elmar expects it
-# subclass into IMM and TT30
-gw3i_imm_p50dec = (
-    (magicc_p67_smoothed.max(axis=1) < 2.0) &
-    (magicc_p50_smoothed["2100"] < 1.5) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"]) &
-    (scen_meta['IMM'])
-)
-np.sum(gw3i_imm_p50dec)
-
-# %%
-gw3i_tt30_p50dec = (
-    (magicc_p67_smoothed.max(axis=1) < 2.0) &
-    (magicc_p50_smoothed["2100"] < 1.5) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"]) &
-    (~scen_meta['IMM'])
-)
-np.sum(gw3i_tt30_p50dec)
-
-# %%
-gw3i_imm_p67dec = (
-    (magicc_p67_smoothed.max(axis=1) < 2.0) &
-    (magicc_p50_smoothed["2100"] < 1.5) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"]) &
-    (scen_meta['IMM'])
-)
-np.sum(gw3i_imm_p67dec)
-
-# %%
-gw3i_tt30_p67dec = (
-    (magicc_p67_smoothed.max(axis=1) < 2.0) &
-    (magicc_p50_smoothed["2100"] < 1.5) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"]) &
-    (~scen_meta['IMM'])
-)
-np.sum(gw3i_tt30_p67dec)
-
-# %%
-# GW3-IIa
-# requires NZ
-# explicitly check DEC
-gw3iia_imm_p50dec = (
-    (magicc_p67_smoothed.max(axis=1) < 2.0) &
-    (magicc_p67_smoothed["2100"] < 2.0) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"]) &
-    (scen_meta['NZ_GHG']) &
-    (scen_meta['IMM'])
-)
-np.sum(gw3iia_imm_p50dec)
-
-# %%
-gw3iia_tt30_p50dec = (
-    (magicc_p67_smoothed.max(axis=1) < 2.0) &
-    (magicc_p67_smoothed["2100"] < 2.0) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"]) &
-    (scen_meta['NZ_GHG']) &
-    (~scen_meta['IMM'])
-)
-np.sum(gw3iia_tt30_p50dec)
-
-# %%
-gw3iia_imm_p67dec = (
-    (magicc_p67_smoothed.max(axis=1) < 2.0) &
-    (magicc_p67_smoothed["2100"] < 2.0) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"]) &
-    (scen_meta['NZ_GHG']) &
-    (scen_meta['IMM'])
-)
-np.sum(gw3iia_imm_p67dec)
-
-# %%
-gw3iia_tt30_p67dec = (
-    (magicc_p67_smoothed.max(axis=1) < 2.0) &
-    (magicc_p67_smoothed["2100"] < 2.0) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"]) &
-    (scen_meta['NZ_GHG']) &
-    (~scen_meta['IMM'])
-)
-np.sum(gw3iia_tt30_p67dec)
-
-# %%
-# GW3-IIb
-gw3iib_imm_p50dec = (
-    (magicc_p67_smoothed.max(axis=1) < 2.0) &
-    (magicc_p67_smoothed["2100"] < 2.0) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"]) &
-    (~scen_meta['NZ_GHG']) &
-    (scen_meta['IMM'])
-)
-np.sum(gw3iib_imm_p50dec)
-
-# %%
-gw3iib_tt30_p50dec = (
-    (magicc_p67_smoothed.max(axis=1) < 2.0) &
-    (magicc_p67_smoothed["2100"] < 2.0) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"]) &
-    (~scen_meta['NZ_GHG']) &
-    (~scen_meta['IMM'])
-)
-np.sum(gw3iib_tt30_p50dec)
-
-# %%
-gw3iib_imm_p67dec = (
-    (magicc_p67_smoothed.max(axis=1) < 2.0) &
-    (magicc_p67_smoothed["2100"] < 2.0) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"]) &
-    (~scen_meta['NZ_GHG']) &
-    (scen_meta['IMM'])
-)
-np.sum(gw3iib_imm_p67dec)
-
-# %%
-gw3iib_tt30_p67dec = (
-    (magicc_p67_smoothed.max(axis=1) < 2.0) &
-    (magicc_p67_smoothed["2100"] < 2.0) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"]) &
-    (~scen_meta['NZ_GHG']) &
-    (~scen_meta['IMM'])
-)
-np.sum(gw3iib_tt30_p67dec)
-
-# %%
-# GW3-IIc
-gw3iic_imm_p50dec = (
-    (magicc_p67_smoothed.max(axis=1) < 2.0) &
-    (magicc_p67_smoothed["2100"] < 2.0) & 
-    (magicc_p50_smoothed["2100"] >= magicc_p50_smoothed["2090"]) &
-    (~scen_meta['NZ_GHG']) &
-    (scen_meta['IMM'])
-)
-np.sum(gw3iic_imm_p50dec)
-
-# %%
-gw3iic_tt30_p50dec = (
-    (magicc_p67_smoothed.max(axis=1) < 2.0) &
-    (magicc_p67_smoothed["2100"] < 2.0) & 
-    (magicc_p50_smoothed["2100"] >= magicc_p50_smoothed["2090"]) &
-    (~scen_meta['NZ_GHG']) &
-    (~scen_meta['IMM'])
-)
-np.sum(gw3iic_tt30_p50dec)
-
-# %%
-gw3iic_imm_p67dec = (
-    (magicc_p67_smoothed.max(axis=1) < 2.0) &
-    (magicc_p67_smoothed["2100"] < 2.0) & 
-    (magicc_p67_smoothed["2100"] >= magicc_p67_smoothed["2090"]) &
-    (~scen_meta['NZ_GHG']) &
-    (scen_meta['IMM'])
-)
-np.sum(gw3iic_imm_p67dec)
-
-# %%
-gw3iic_tt30_p67dec = (
-    (magicc_p67_smoothed.max(axis=1) < 2.0) &
-    (magicc_p67_smoothed["2100"] < 2.0) & 
-    (magicc_p67_smoothed["2100"] >= magicc_p67_smoothed["2090"]) &
-    (~scen_meta['NZ_GHG']) &
-    (~scen_meta['IMM'])
-)
-np.sum(gw3iic_tt30_p67dec)
-
-# %%
-# GW4-I: not explicitly requiring DEC according to Elmar - only we "expect" it
-# Now with the p50 and p67 definitions we should require it since p67 is a harder condition to meet.
-# GW4 is not Paris compliant, so does it have to be DEC?
-gw4i_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 2.0) & 
-    (magicc_p50_smoothed["2100"] < 1.7) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"])
-    # scenarios expected to be NZ; no formal check performed
-)
-np.sum(gw4i_p50dec)
-
-# %%
-gw4i_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 2.0) & 
-    (magicc_p50_smoothed["2100"] < 1.7) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"])
-    # scenarios expected to be NZ; no formal check performed
-)
-np.sum(gw4i_p67dec)
-
-# %%
-# GW4-IIa
-gw4iia_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 2.0) & 
-    (magicc_p50_smoothed["2100"] < 2.0) &
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"]) &
-    (scen_meta['NZ_GHG'])
-)
-np.sum(gw4iia_p50dec)
-
-# %%
-gw4iia_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 2.0) & 
-    (magicc_p50_smoothed["2100"] < 2.0) &
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"]) &
-    (scen_meta['NZ_GHG'])
-)
-np.sum(gw4iia_p67dec)
-
-# %%
-# GW4-IIb
-gw4iib_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 2.0) & 
-    (magicc_p50_smoothed["2100"] < 2.0) &
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"]) &
-    (~scen_meta['NZ_GHG'])
-)
-np.sum(gw4iib_p50dec)
-
-# %%
-gw4iib_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 2.0) & 
-    (magicc_p50_smoothed["2100"] < 2.0) &
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"]) &
-    (~scen_meta['NZ_GHG'])
-)
-np.sum(gw4iib_p67dec)
-
-# %%
-# GW4-IIc
-gw4iic_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 2.0) & 
-    (magicc_p50_smoothed["2100"] < 2.0) & 
-    (magicc_p50_smoothed["2100"] >= magicc_p50_smoothed["2090"])
-    # assuming not NZ as still warming at EoC
-)
-np.sum(gw4iic_p50dec)
-
-# %%
-gw4iic_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 2.0) & 
-    (magicc_p50_smoothed["2100"] < 2.0) & 
-    (magicc_p67_smoothed["2100"] >= magicc_p67_smoothed["2090"])
-    # assuming not NZ as still warming at EoC
-)
-np.sum(gw4iic_p67dec)
-
-# %%
-# GW5
-gw5_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 2.5) & 
-    (magicc_p50_smoothed["2100"] < 2.5) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"])
-)
-np.sum(gw5_p50dec)
-
-# %%
-gw5_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 2.5) & 
-    (magicc_p50_smoothed["2100"] < 2.5) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"])
-)
-np.sum(gw5_p67dec)
-
-# %%
-# GW5c
-# GW5 and GW5c should always be mutually exclusive
-gw5c_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 2.5) & 
-    (magicc_p50_smoothed["2100"] < 2.5) & 
-    (magicc_p50_smoothed["2100"] >= magicc_p50_smoothed["2090"])
-)
-np.sum(gw5c_p50dec)
-
-# %%
-gw5c_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 2.5) & 
-    (magicc_p50_smoothed["2100"] < 2.5) & 
-    (magicc_p67_smoothed["2100"] >= magicc_p67_smoothed["2090"])
-)
-np.sum(gw5c_p67dec)
-
-# %%
-# GW6
-gw6_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 3.0) & 
-    (magicc_p50_smoothed["2100"] < 3.0) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"])
-)
-np.sum(gw6_p50dec)
-
-# %%
-# diff of GW6 and GW5 is no scenarios at the p67dec test
-gw6_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 3.0) & 
-    (magicc_p50_smoothed["2100"] < 3.0) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"])
-)
-np.sum(gw6_p67dec)
-
-# %%
-# GW6c
-# GW6 and GW6c should always be mutually exclusive
-gw6c_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 3.0) & 
-    (magicc_p50_smoothed["2100"] < 3.0) & 
-    (magicc_p50_smoothed["2100"] >= magicc_p50_smoothed["2090"])
-)
-np.sum(gw6c_p50dec)
-
-# %%
-gw6c_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 3.0) & 
-    (magicc_p50_smoothed["2100"] < 3.0) & 
-    (magicc_p67_smoothed["2100"] >= magicc_p67_smoothed["2090"])
-)
-np.sum(gw6c_p67dec)
-
-# %%
-# GW7. For completeness we'll do the c / no c division, but we expect all to be c in GW7 and GW8
-gw7_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 3.5) & 
-    (magicc_p50_smoothed["2100"] < 3.5) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"])
-)
-np.sum(gw7_p50dec)
-
-# %%
-gw7_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 3.5) & 
-    (magicc_p50_smoothed["2100"] < 3.5) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"])
-)
-np.sum(gw7_p67dec)
-
-# %%
-# GW7c
-gw7c_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) < 3.5) & 
-    (magicc_p50_smoothed["2100"] < 3.5) & 
-    (magicc_p50_smoothed["2100"] >= magicc_p50_smoothed["2090"])
-)
-np.sum(gw7c_p50dec)
-
-# %%
-gw7c_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) < 3.5) & 
-    (magicc_p50_smoothed["2100"] < 3.5) & 
-    (magicc_p67_smoothed["2100"] >= magicc_p67_smoothed["2090"])
-)
-np.sum(gw7c_p67dec)
-
-# %%
-# GW8. For completeness we'll do the c / no c division, but we expect all to be c in GW7 and GW8
-gw8_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) >= 3.5) & 
-    (magicc_p50_smoothed["2100"] >= 3.5) & 
-    (magicc_p50_smoothed["2100"] < magicc_p50_smoothed["2090"])
-)
-np.sum(gw8_p50dec)
-
-# %%
-gw8_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) >= 3.5) & 
-    (magicc_p50_smoothed["2100"] >= 3.5) & 
-    (magicc_p67_smoothed["2100"] < magicc_p67_smoothed["2090"])
-)
-np.sum(gw8_p67dec)
-
-# %%
-gw8c_p50dec = (
-    (magicc_p50_smoothed.max(axis=1) >= 3.5) & 
-    (magicc_p50_smoothed["2100"] >= 3.5) & 
-    (magicc_p50_smoothed["2100"] >= magicc_p50_smoothed["2090"])
-)
-np.sum(gw8c_p50dec)
-
-# %%
-gw8c_p67dec = (
-    (magicc_p50_smoothed.max(axis=1) >= 3.5) & 
-    (magicc_p50_smoothed["2100"] >= 3.5) & 
-    (magicc_p67_smoothed["2100"] >= magicc_p67_smoothed["2090"])
-)
-np.sum(gw8c_p67dec)
-
-# %% [markdown]
-# Collect into a dataframe, not considering overlaps between categories now
-
-# %%
-cats_non_exclusive_p50dec = pd.DataFrame(
-    (
-        gw0a_p50dec,
-        gw0b_p50dec,
-        gw1a_p50dec,
-        gw1b_p50dec,
-        gw2i_p50dec,
-        gw2ii_p50dec,
-        gw2iiia_p50dec,
-        gw2iiib_p50dec,
-        gw2iiic_p50dec,
-        gw3i_imm_p50dec,
-        gw3i_tt30_p50dec,
-        gw3iia_imm_p50dec,
-        gw3iia_tt30_p50dec,
-        gw3iib_imm_p50dec,
-        gw3iib_tt30_p50dec,
-        gw3iic_imm_p50dec,
-        gw3iic_tt30_p50dec,
-        gw4i_p50dec,
-        gw4iia_p50dec,
-        gw4iib_p50dec,
-        gw4iic_p50dec,
-        gw5_p50dec,
-        gw5c_p50dec,
-        gw6_p50dec,
-        gw6c_p50dec,
-        gw7_p50dec,
-        gw7c_p50dec,
-        gw8_p50dec,
-        gw8c_p50dec,
-    ),
-    index = (
-        'GW0a',
-        'GW0b',
-        'GW1a',
-        'GW1b',
-        'GW2-I',
-        'GW2-II',
-        'GW2-IIIa',
-        'GW2-IIIb',
-        'GW2-IIIc',
-        'GW3-I_IMM',
-        'GW3-I_TT30',
-        'GW3-IIa_IMM',
-        'GW3-IIa_TT30',
-        'GW3-IIb_IMM',
-        'GW3-IIb_TT30',
-        'GW3-IIc_IMM',
-        'GW3-IIc_TT30',
-        'GW4-I',
-        'GW4-IIa',
-        'GW4-IIb',
-        'GW4-IIc',
-        'GW5',
-        'GW5c',
-        'GW6',
-        'GW6c',
-        'GW7',
-        'GW7c',
-        'GW8',
-        'GW8c'
-    )
-).T
-
-# %%
-cats_non_exclusive_p67dec = pd.DataFrame(
-    (
-        gw0a_p67dec,
-        gw0b_p67dec,
-        gw1a_p67dec,
-        gw1b_p67dec,
-        gw2i_p67dec,
-        gw2ii_p67dec,
-        gw2iiia_p67dec,
-        gw2iiib_p67dec,
-        gw2iiic_p67dec,
-        gw3i_imm_p67dec,
-        gw3i_tt30_p67dec,
-        gw3iia_imm_p67dec,
-        gw3iia_tt30_p67dec,
-        gw3iib_imm_p67dec,
-        gw3iib_tt30_p67dec,
-        gw3iic_imm_p67dec,
-        gw3iic_tt30_p67dec,
-        gw4i_p67dec,
-        gw4iia_p67dec,
-        gw4iib_p67dec,
-        gw4iic_p67dec,
-        gw5_p67dec,
-        gw5c_p67dec,
-        gw6_p67dec,
-        gw6c_p67dec,
-        gw7_p67dec,
-        gw7c_p67dec,
-        gw8_p67dec,
-        gw8c_p67dec,
-    ),
-    index = (
-        'GW0a',
-        'GW0b',
-        'GW1a',
-        'GW1b',
-        'GW2-I',
-        'GW2-II',
-        'GW2-IIIa',
-        'GW2-IIIb',
-        'GW2-IIIc',
-        'GW3-I_IMM',
-        'GW3-I_TT30',
-        'GW3-IIa_IMM',
-        'GW3-IIa_TT30',
-        'GW3-IIb_IMM',
-        'GW3-IIb_TT30',
-        'GW3-IIc_IMM',
-        'GW3-IIc_TT30',
-        'GW4-I',
-        'GW4-IIa',
-        'GW4-IIb',
-        'GW4-IIc',
-        'GW5',
-        'GW5c',
-        'GW6',
-        'GW6c',
-        'GW7',
-        'GW7c',
-        'GW8',
-        'GW8c'
-    )
-).T
-
-# %%
-cats_non_exclusive_p50dec
-
-# %%
-cats_non_exclusive_p67dec
-
-# %%
-cats_non_exclusive_p50dec.sum()
-
-# %%
-cats_non_exclusive_p67dec.sum()
-
-# %%
-# number of categories satisfied
-cats_non_exclusive_p50dec.sum(axis=1)
-
-# %%
-cats_non_exclusive_p67dec.sum(axis=1)
-
-# %%
-# check: any scenarios not assigned?
-(cats_non_exclusive_p50dec.sum(axis=1) == 0).sum()
-
-# %%
-(cats_non_exclusive_p67dec.sum(axis=1) == 0).sum()
-
-# %%
-# now construct dataframe with exclusivity
-# if it's in a lower category, remove it from all higher categories
-cats_exclusive_p50dec = cats_non_exclusive_p50dec.copy()
-cats_exclusive_p50dec
-
-# %%
-cats_exclusive_p67dec = cats_non_exclusive_p67dec.copy()
-cats_exclusive_p67dec
-
-# %%
-cats = cats_exclusive_p50dec.columns
-cats
-
-# %%
-cats[0]
-
-# %%
-for ic, cat in enumerate(cats[:-1]):
-    cats_exclusive_p50dec.loc[cats_exclusive_p50dec[cat]==True, cats[ic+1]:] = False
-    cats_exclusive_p67dec.loc[cats_exclusive_p67dec[cat]==True, cats[ic+1]:] = False
-
-# %%
-cats_exclusive_p50dec
-
-# %%
-cats_exclusive_p67dec
+magicc_p50_smoothed.max(axis=1)
+
+# %%
+scen_meta.loc[:, 'PW_p50'] = magicc_p50_smoothed.max(axis=1)
+scen_meta.loc[:, 'PW_p67'] = magicc_p67_smoothed.max(axis=1)
+scen_meta.loc[:, '2100_p50'] = magicc_p50_smoothed["2100"]
+scen_meta.loc[:, '2100_p67'] = magicc_p67_smoothed["2100"]
+scen_meta.loc[:, '2090_p50'] = magicc_p50_smoothed["2090"]
+scen_meta.loc[:, '2090_p67'] = magicc_p67_smoothed["2090"]
+scen_meta.loc[:, 'DEC_p50'] = scen_meta.loc[:, '2100_p50'] < scen_meta.loc[:, '2090_p50']
+scen_meta.loc[:, 'DEC_p67'] = scen_meta.loc[:, '2100_p67'] < scen_meta.loc[:, '2090_p67']
+scen_meta
+
+# %%
+for dec_level in [50, 67]:
+    scen_meta.loc[(scen_meta['PW_p50']<1.5) & (scen_meta['2100_p50']<1.5) & (scen_meta[f'DEC_p{dec_level}']) & (scen_meta['NZ_GHG']), f'Category_DEC_p{dec_level}'] = 'GW0a'
+    scen_meta.loc[(scen_meta['PW_p50']<1.5) & (scen_meta['2100_p50']<1.5) & (scen_meta[f'DEC_p{dec_level}']) & (scen_meta['NZ_GHG']==False), f'Category_DEC_p{dec_level}'] = 'GW0b'
+    
+    scen_meta.loc[(scen_meta['PW_p50']<1.6) & (scen_meta['2100_p50']<1.5) & (scen_meta[f'DEC_p{dec_level}']) & (scen_meta['NZ_GHG']) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW1a'
+    scen_meta.loc[(scen_meta['PW_p50']<1.6) & (scen_meta['2100_p50']<1.5) & (scen_meta[f'DEC_p{dec_level}']) & (scen_meta['NZ_GHG']==False) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW1b'
+    
+    scen_meta.loc[(scen_meta['PW_p50']<1.7) & (scen_meta['2100_p67']<1.5) & (scen_meta[f'DEC_p{dec_level}']) & (scen_meta['NZ_GHG']) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW2-I'
+    scen_meta.loc[(scen_meta['PW_p50']<1.7) & (scen_meta['2100_p50']<1.5) & (scen_meta[f'DEC_p{dec_level}']) & (scen_meta['NZ_GHG']) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW2-II'
+    scen_meta.loc[(scen_meta['PW_p50']<1.7) & (scen_meta['2100_p50']<1.7) & (scen_meta[f'DEC_p{dec_level}']) & (scen_meta['NZ_GHG']) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW2-IIIa'
+    scen_meta.loc[(scen_meta['PW_p50']<1.7) & (scen_meta['2100_p50']<1.7) & (scen_meta[f'DEC_p{dec_level}']) & (scen_meta['NZ_GHG']==False) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW2-IIIb'
+    scen_meta.loc[(scen_meta['PW_p50']<1.7) & (scen_meta['2100_p50']<1.7) & (scen_meta[f'DEC_p{dec_level}']==False) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW2-IIIc'
+    
+    scen_meta.loc[(scen_meta['PW_p67']<2.0) & (scen_meta['2100_p50']<1.5) & (scen_meta[f'DEC_p{dec_level}']) & (scen_meta['NZ_GHG']) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW3-I'
+    scen_meta.loc[(scen_meta['PW_p67']<2.0) & (scen_meta['2100_p67']<2.0) & (scen_meta[f'DEC_p{dec_level}']) & (scen_meta['NZ_GHG']) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW3-IIa'
+    scen_meta.loc[(scen_meta['PW_p67']<2.0) & (scen_meta['2100_p67']<2.0) & (scen_meta[f'DEC_p{dec_level}']) & (scen_meta['NZ_GHG']==False) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW3-IIb'
+    scen_meta.loc[(scen_meta['PW_p67']<2.0) & (scen_meta['2100_p67']<2.0) & (scen_meta[f'DEC_p{dec_level}']==False) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW3-IIc'
+    
+    scen_meta.loc[(scen_meta['PW_p50']<2.0) & (scen_meta['2100_p50']<1.7) & (scen_meta[f'DEC_p{dec_level}']) & (scen_meta['NZ_GHG']) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW4-I'
+    scen_meta.loc[(scen_meta['PW_p50']<2.0) & (scen_meta['2100_p50']<2.0) & (scen_meta[f'DEC_p{dec_level}']) & (scen_meta['NZ_GHG']) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW4-IIa'
+    scen_meta.loc[(scen_meta['PW_p50']<2.0) & (scen_meta['2100_p50']<2.0) & (scen_meta[f'DEC_p{dec_level}']) & (scen_meta['NZ_GHG']==False) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW4-IIb'
+    scen_meta.loc[(scen_meta['PW_p50']<2.0) & (scen_meta['2100_p50']<2.0) & (scen_meta[f'DEC_p{dec_level}']==False) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW4-IIc'
+    
+    scen_meta.loc[(scen_meta['PW_p50']<2.5) & (scen_meta['2100_p50']<2.5) & (scen_meta[f'DEC_p{dec_level}']) & (scen_meta['NZ_GHG']) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW5a'
+    scen_meta.loc[(scen_meta['PW_p50']<2.5) & (scen_meta['2100_p50']<2.5) & (scen_meta[f'DEC_p{dec_level}']) & (scen_meta['NZ_GHG']==False) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW5b'
+    scen_meta.loc[(scen_meta['PW_p50']<2.5) & (scen_meta['2100_p50']<2.5) & (scen_meta[f'DEC_p{dec_level}']==False) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW5c'
+    
+    scen_meta.loc[(scen_meta['PW_p50']<3.0) & (scen_meta['2100_p50']<3.0) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW6'
+    scen_meta.loc[(scen_meta['PW_p50']<3.5) & (scen_meta['2100_p50']<3.5) & (scen_meta[f'Category_DEC_p{dec_level}'].isna()), f'Category_DEC_p{dec_level}'] = 'GW7'
+    scen_meta.loc[(scen_meta['PW_p50']>=3.5) & (scen_meta['2100_p50']>=3.5), f'Category_DEC_p{dec_level}'] = 'GW8'
+
+# %%
+scen_meta
+
+# %%
+# Next separate the GW3 category into IMM and TT30. Not relevant for other categories. 
+scen_meta.loc[scen_meta['Category_DEC_p50'].str.startswith('GW3')].index
+
+# %%
+test_2030 = ghg_emis.loc[scen_meta.loc[scen_meta['Category_DEC_p50'].str.startswith('GW3')].index, '2030'] < 47000
+for idx, lt47gt in test_2030.items():
+    if lt47gt:
+        scen_meta.loc[idx, 'IMM_TT30'] = 'IMM'
+    else:
+        scen_meta.loc[idx, 'IMM_TT30'] = 'TT30'
+#), 'IMM_TT30']
+
+# %%
+# finally rename the DEC_p50
+scen_meta.rename(columns={"Category_DEC_p50": "Category"}, inplace=True)
+scen_meta
 
 # %%
 # scenarios per category
-cats_exclusive_p50dec.sum()
-
-# %%
-cats_exclusive_p67dec.sum()
-
-# %%
-# should be 1202
-cats_exclusive_p50dec.sum().sum()
-
-# %%
-cats_exclusive_p67dec.sum().sum()
-
-# %%
-# should be zero scenarios that do not have one and only one category
-(cats_exclusive_p50dec.sum(axis=1) != 1).sum()
-
-# %%
-(cats_exclusive_p67dec.sum(axis=1) != 1).sum()
-
-# %%
-# make into a two column dataframe
-cat_df = pd.DataFrame(index=cats_exclusive_p50dec.index, columns=['Category_p50_DEC', 'Category_p67_DEC'])
-
-# %%
-for cat in cats:
-    cat_df.loc[cats_exclusive_p50dec[cat], 'Category_p50_DEC'] = cat
-    cat_df.loc[cats_exclusive_p67dec[cat], 'Category_p67_DEC'] = cat
-
-# %%
-cat_df
-
-# %% [markdown]
-# ## make plot
-
-# %%
-pl.style.use('../defaults.mplstyle')
-
-# %%
 supercats = {
     'GW0': ['GW0a', 'GW0b'],
     'GW1': ['GW1a', 'GW1b'],
     'GW2-I': ['GW2-I'],
     'GW2-II': ['GW2-II'],
     'GW2-III': ['GW2-IIIa', 'GW2-IIIb', 'GW2-IIIc'],
-    'GW3-I': ['GW3-I_IMM', 'GW3-I_TT30'],
-    'GW3-II': ['GW3-IIa_IMM', 'GW3-IIa_TT30', 'GW3-IIb_IMM', 'GW3-IIb_TT30', 'GW3-IIc_IMM', 'GW3-IIc_TT30'],
+    'GW3-I': ['GW3-I'],
+    'GW3-II': ['GW3-IIa', 'GW3-IIb', 'GW3-IIc'],
     'GW4-I': ['GW4-I'],
     'GW4-II': ['GW4-IIa', 'GW4-IIb', 'GW4-IIc'],
-    'GW5': ['GW5', 'GW5c'],
-    'GW6': ['GW6', 'GW6c'],
-    'GW7+8': ['GW7', 'GW7c', 'GW8', 'GW8c'],
+    'GW5': ['GW5a', 'GW5b', 'GW5c'],
+    'GW6': ['GW6'],
+    'GW7+8': ['GW7', 'GW8'],
 }
 
 # %%
-dec_nz_type_p50_DEC = {
-    'GW0': ['a', 'b'],
-    'GW1': ['a', 'b'],
-    'GW2-I': [None],
-    'GW2-II': [None],
-    'GW2-III': ['a', 'b', 'c'],
-    'GW3-I': [None, None],
-    'GW3-II': ['a', 'a', 'b', 'b', 'c', 'c'],
-    'GW4-I': [None],
-    'GW4-II': ['a', 'b', 'c'],
-    'GW5': ['b', 'c'],
-    'GW6': ['b', 'c'],
-    'GW7+8': [None, None, None, None],
-}
+cats = []
+for cat in supercats.values():
+    for icat in cat:
+        cats.append(icat)
+cats
 
 # %%
-dec_nz_type_p67_DEC = {
-    'GW0': ['a', 'b'],
-    'GW1': ['a', 'b'],
-    'GW2-I': [None],
-    'GW2-II': [None],
-    'GW2-III': ['a', 'b', 'c'],
-    'GW3-I': [None, None],
-    'GW3-II': ['a', 'a', 'b', 'b', 'c', 'c'],
-    'GW4-I': [None],
-    'GW4-II': ['a', 'b', 'c'],
-    'GW5': ['b', 'c'],
-    'GW6': [None, None],
-    'GW7+8': [None, None, None, None],
-}
+for cat in cats:
+    print((scen_meta['Category']==cat).sum())
+
+# %% [markdown]
+# ## make plot
 
 # %%
-dec_nz_color = {
-    'a': 'blue',
-    'b': 'red',
-    'c': 'green',
-    None: 'black',
-}
-
-# %%
-imm_tt30_type = {
-    'GW0': [None, None],
-    'GW1': [None, None],
-    'GW2-I': [None],
-    'GW2-II': [None],
-    'GW2-III': [None, None, None],
-    'GW3-I': ['IMM', 'TT30'],
-    'GW3-II': ['IMM', 'TT30', 'IMM', 'TT30', 'IMM', 'TT30'],
-    'GW4-I': [None],
-    'GW4-II': [None, None, None],
-    'GW5': [None, None],
-    'GW6': [None, None],
-    'GW7+8': [None, None, None, None],
-}
-
-# %%
-imm_tt30_ls = {
-    None: '-',
-    'IMM': '--',
-    'TT30': '-.',
-}
+pl.style.use('../defaults.mplstyle')
 
 # %%
 descriptions_supercats = {
@@ -1018,83 +269,73 @@ descriptions_supercats = {
 }
 
 # %%
+dec_nz_type = {
+    'GW0': ['a', 'b'],
+    'GW1': ['a', 'b'],
+    'GW2-I': [None],
+    'GW2-II': [None],
+    'GW2-III': ['a', 'b', 'c'],
+    'GW3-I': [None, None],
+    'GW3-II': ['a', 'a', 'b', 'b', 'c', 'c'],
+    'GW4-I': [None],
+    'GW4-II': ['a', 'b', 'c'],
+    'GW5': ['a', 'b', 'c'],
+    'GW6': [None],
+    'GW7+8': [None, None],
+}
+
+dec_nz_color = {
+    'a': 'blue',
+    'b': 'red',
+    'c': 'green',
+    '7': 'orange',
+    '8': 'purple',
+    None: 'black',
+}
+
+# %%
 os.makedirs('../plots', exist_ok=True)
 fig, ax = pl.subplots(3, 4, figsize=(18/2.54, 18/2.54))
 for isc, supercat in enumerate(supercats):
     i = isc//4
     j = isc%4
     #print(i, j, supercat)
+    n = 0
     for ic, cat in enumerate(supercats[supercat]):
         ax[i, j].plot(
             np.arange(2000, 2101), 
-            magicc_p50_smoothed[cat_df['Category_p50_DEC']==cat].values.T,
+            magicc_p50_smoothed[scen_meta['Category']==cat].values.T,
             lw=1, 
-            color=dec_nz_color[dec_nz_type_p50_DEC[supercat][ic]],
-            ls=imm_tt30_ls[imm_tt30_type[supercat][ic]],
+            color=dec_nz_color[dec_nz_type[supercat][ic]],
             alpha=0.25
         )
+        n = n + (scen_meta['Category']==cat).sum()
     ax[i, j].set_ylim(0.7, 4.0)
     ax[i, j].set_xlim(2000, 2100)
     ax[i, j].text(2005, 3.7, supercat, ha='left', va='baseline')
-    ax[i, j].text(2005, 3.4, descriptions_supercats[supercat][0], ha='left', va='baseline')
-    ax[i, j].text(2005, 3.1, descriptions_supercats[supercat][1], ha='left', va='baseline')
-ax[0, 0].text(2005, 2.8, 'a: DEC, NZ', color='blue', ha='left', va='baseline')
-ax[0, 1].text(2005, 2.8, 'a: DEC, NZ', color='blue', ha='left', va='baseline')
-ax[1, 0].text(2005, 2.8, 'a: DEC, NZ', color='blue', ha='left', va='baseline')
-ax[1, 2].text(2005, 2.8, 'a: DEC, NZ', color='blue', ha='left', va='baseline')
-ax[2, 0].text(2005, 2.8, 'a: DEC, NZ', color='blue', ha='left', va='baseline')
-ax[0, 0].text(2005, 2.5, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
-ax[0, 1].text(2005, 2.5, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
-ax[1, 0].text(2005, 2.5, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
-ax[1, 2].text(2005, 2.5, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
-ax[2, 0].text(2005, 2.5, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
-ax[2, 1].text(2005, 2.8, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
-ax[2, 2].text(2005, 2.8, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
+    ax[i, j].text(2005, 3.45, descriptions_supercats[supercat][0], ha='left', va='baseline')
+    ax[i, j].text(2005, 3.2, descriptions_supercats[supercat][1], ha='left', va='baseline')
+    ax[i, j].text(2005, 2.95, f'n = {n}', va='baseline')
+ax[0, 0].text(2005, 2.7, 'a: DEC, NZ', color='blue', ha='left', va='baseline')
+ax[0, 1].text(2005, 2.7, 'a: DEC, NZ', color='blue', ha='left', va='baseline')
+ax[1, 0].text(2005, 2.7, 'a: DEC, NZ', color='blue', ha='left', va='baseline')
+ax[1, 2].text(2005, 2.7, 'a: DEC, NZ', color='blue', ha='left', va='baseline')
+ax[2, 0].text(2005, 2.7, 'a: DEC, NZ', color='blue', ha='left', va='baseline')
+ax[2, 1].text(2005, 2.7, 'a: DEC, NZ', color='blue', ha='left', va='baseline')
+ax[0, 0].text(2005, 2.45, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
+ax[0, 1].text(2005, 2.45, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
+ax[1, 0].text(2005, 2.45, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
+ax[1, 2].text(2005, 2.45, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
+ax[2, 0].text(2005, 2.45, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
+ax[2, 1].text(2005, 2.45, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
 ax[1, 0].text(2005, 2.2, 'c: NoDEC, NoNZ', color='green', ha='left', va='baseline')
 ax[1, 2].text(2005, 2.2, 'c: NoDEC, NoNZ', color='green', ha='left', va='baseline')
 ax[2, 0].text(2005, 2.2, 'c: NoDEC, NoNZ', color='green', ha='left', va='baseline')
-ax[2, 1].text(2005, 2.5, 'c: NoDEC, NoNZ', color='green', ha='left', va='baseline')
-ax[2, 2].text(2005, 2.5, 'c: NoDEC, NoNZ', color='green', ha='left', va='baseline')
+ax[2, 1].text(2005, 2.2, 'c: NoDEC, NoNZ', color='green', ha='left', va='baseline')
 fig.tight_layout()
 pl.savefig('../plots/cats_p50dec.png')
 
 # %%
-os.makedirs('../plots', exist_ok=True)
-fig, ax = pl.subplots(3, 4, figsize=(18/2.54, 18/2.54))
-for isc, supercat in enumerate(supercats):
-    i = isc//4
-    j = isc%4
-    #print(i, j, supercat)
-    for ic, cat in enumerate(supercats[supercat]):
-        ax[i, j].plot(
-            np.arange(2000, 2101), 
-            magicc_p50_smoothed[cat_df['Category_p67_DEC']==cat].values.T,
-            lw=1, 
-            color=dec_nz_color[dec_nz_type_p67_DEC[supercat][ic]],
-            ls=imm_tt30_ls[imm_tt30_type[supercat][ic]],
-            alpha=0.25
-        )
-    ax[i, j].set_ylim(0.7, 4.0)
-    ax[i, j].set_xlim(2000, 2100)
-    ax[i, j].text(2005, 3.7, supercat, ha='left', va='baseline')
-    ax[i, j].text(2005, 3.4, descriptions_supercats[supercat][0], ha='left', va='baseline')
-    ax[i, j].text(2005, 3.1, descriptions_supercats[supercat][1], ha='left', va='baseline')
-ax[0, 0].text(2005, 2.8, 'a: DEC, NZ', color='blue', ha='left', va='baseline')
-ax[0, 1].text(2005, 2.8, 'a: DEC, NZ', color='blue', ha='left', va='baseline')
-ax[1, 0].text(2005, 2.8, 'a: DEC, NZ', color='blue', ha='left', va='baseline')
-ax[1, 2].text(2005, 2.8, 'a: DEC, NZ', color='blue', ha='left', va='baseline')
-ax[2, 0].text(2005, 2.8, 'a: DEC, NZ', color='blue', ha='left', va='baseline')
-ax[0, 0].text(2005, 2.5, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
-ax[0, 1].text(2005, 2.5, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
-ax[1, 0].text(2005, 2.5, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
-ax[1, 2].text(2005, 2.5, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
-ax[2, 0].text(2005, 2.5, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
-ax[2, 1].text(2005, 2.8, 'b: DEC, NoNZ', color='red', ha='left', va='baseline')
-ax[1, 0].text(2005, 2.2, 'c: NoDEC, NoNZ', color='green', ha='left', va='baseline')
-ax[1, 2].text(2005, 2.2, 'c: NoDEC, NoNZ', color='green', ha='left', va='baseline')
-ax[2, 0].text(2005, 2.2, 'c: NoDEC, NoNZ', color='green', ha='left', va='baseline')
-ax[2, 1].text(2005, 2.5, 'c: NoDEC, NoNZ', color='green', ha='left', va='baseline')
-fig.tight_layout()
-pl.savefig('../plots/cats_p67dec.png')
-
-# %%
+# export metadata
+os.makedirs('../output')
+scen_meta.to_csv('../output/meta.csv')

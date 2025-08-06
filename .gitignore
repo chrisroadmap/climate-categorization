@@ -1,5 +1,6 @@
-# don't commit plots or raw notebooks
+# don't commit plots, output files or raw notebooks
 plots/
+output/
 *.ipynb
 
 # Byte-compiled / optimized / DLL files
